@@ -25,102 +25,105 @@ module memory_ram
 (
     input clock,
     input reset,
-    input [(ADDRESS_WIDTH-1):0] addr, // FFFFh
+    input [(ADDRESS_WIDTH-1):0] addr, 
     input rd, //read
     input wr, //write
-    input in_data,// write in an address
-    input in_bit, // write in a bit
-    input is_bit_addr, // address of a bit
-    input p0_in, // ports
-    input p1_in,
-    input p2_in,
-    input p3_in,
-    output [(ADDRESS_WIDTH -1):0] out,// word
-    output out_bit
+    input in_data,// data to write in an address
+    input in_bit, // data to write in the bit 
+    input bit_addr,
+    input is_bit, // flag to indicate that is bit addressable
+    input indirect_flag, // flag 
+    output reg [(ADDRESS_WIDTH -1):0] out,// word
+    output reg out_bit
 );
 // -------------Auxiliar variables---------------
 integer i;
 //----------------------------------------------
-reg [(ADDRESS_WIDTH -1):0] out;
-reg out_bit;
 reg [7:0] mem_word;
 reg bit_to_change;
-reg [7:0] addr_bit;
-reg [127:0] iRAM [(ADDRESS_WIDTH-1):0];
+reg [7:0] aux_addr_bit; // auxiliar variable to find the address of the bit to change
+reg [127:0] LRAM [(ADDRESS_WIDTH-1):0]; // 0-127 
 
-reg [(DATA_WIDTH-1):128] IRAM[ (ADDRESS_WIDTH-1):0];
+reg [(DATA_WIDTH-1):128] HRAM[ (ADDRESS_WIDTH-1):0]; //SFR's
 
-initial if (INIT_FILE) begin
+reg [(DATA_WIDTH-1):128] IRAM[ (ADDRESS_WIDTH-1):0]; //127-256 inderect acess
 
-    $readmemh(INIT_FILE,RAM);  
-     
-end 
+
 // -----------------Reset------------------------
 always @(posedge reset)
 begin
     for (i=0; i<=127;i=i+1) begin
-      iRAM[i]=16'b0000000000000000;
+      LRAM[i]=16'b0000000000000000;
     end
     for (i=0; i<=128;i=i+1) begin
+      HRAM[i]=16'b0000000000000000;
       IRAM[i]=16'b0000000000000000;
     end  
 end
 
-// ========================Write and Read bit=======================000
+//=====================================================================
+// notes : see better SFR bit addressable
+
+// ========================Write and Read bit===========================
 always @(posedge clock)
 begin
-    if (is_bit_addr ==1'b1)begin // bit addressable 
-        bit_to_change =addr[2:0];
+    if (is_bit ==1'b1)begin // bit addressable 
         if(rd ==1'b1)begin
-            if( addr >= 128 && addr<=255)begin // SFR  / direct acess
-                mem_word = IRAM [addr];
+            if( (addr >= 128 && addr<=255) && addr[3:0] == 4'b1000 || addr[3:0] == 4'b0000 )begin // SFR  / direct acess
+                mem_word = HRAM [addr];
                 out_bit=mem_word[bit_to_change];
             end
-            else begin // bit addressable area 20h to 2Fh
-                assign addr_bit ={3'b001,addr[4:0]};
-                mem_word = iRAM [addr];
+            else if(addr>=8'b00100000 && addr<=8'b00101111) begin // bit addressable area 20h to 2Fh
+                aux_addr_bit = bit_addr/8;
+                bit_to_change =  bit_addr%8;
+                mem_word = LRAM [aux_addr_bit+ 8'b00100000]; // aux_addr_bit(line) + 20h (first address of bit addressable memory)
                 out_bit=mem_word[bit_to_change];
             end
         end 
        if(wr==1'b1)begin
-          if( addr >= 128 && addr<=255)begin // SFR  / direct acess
-            mem_word = IRAM [addr];
+          if( (addr >= 128 && addr<=255) && (addr[3:0] == 4'b1000  || addr[3:0] == 4'b0000))begin // SFR  finishing in 0 or 8 are 
+            mem_word = HRAM [addr];                                                              // bit addressable
             mem_word [bit_to_change] = in_bit;
-            IRAM[addr] = mem_word;
+            HRAM[addr] = mem_word;
           end
-          else begin
-            assign addr_bit ={3'b001,addr[4:0]};
-            mem_word = iRAM [addr];
+          else if(addr>=8'b00100000 && addr<=8'b00101111)begin // bit addressable area 20h to 2Fh
+            aux_addr_bit = bit_addr/8; // example : 9/8 = 1 so is the line 1; 9%8=1 it meaans that is the bit one of the line 1
+            bit_to_change =  bit_addr%8;
+            mem_word = LRAM [aux_addr_bit + 8'b00100000];// aux_addr_bit(line) + 20h (first address of bit addressable memory)
             mem_word[bit_to_change] = in_bit;
-            iRAM[addr] = mem_word;
+            LRAM[addr] = mem_word;
           end 
        end
     end
         
 end
 //============================================================================
-// ========================Write and Read byte=======================000
+// ========================Write and Read byte================================
 always @(posedge clock)
 begin
-    if (is_bit_addr ==0'b1)begin // byte addressable
+    if (is_bit ==1'b1)begin // byte addressable
         if(rd ==1'b1)begin
             if( addr >= 128 && addr<=255)begin // SFR  / direct acess
-               out = IRAM[addr];
+               out = HRAM[addr];
             end
-            else begin 
-               out = iRAM[addr];
+            else if(addr <128 && addr >=0) begin 
+               out = LRAM[addr];
+            end
+            else if (indirect_flag==1 && addr >= 128 && addr<=255 )
+                out = IRAM[addr];
             end
         end 
        if(wr==1'b1)begin
           if( addr >= 128 && addr<=255)begin // SFR  / direct acess
-            IRAM[addr] = in_data;
+            HRAM[addr] = in_data;
           end
-          else begin
-            iRAM[addr] = in_data;
+          else if(addr <128 && addr >=0) begin
+            LRAM[addr] = in_data;
           end 
-       end
-    end
-        
+          else if (indirect_flag==1 && addr >= 128 && addr<=255 ) begin  
+            out = IRAM[addr];
+          end
+        end     
 end
 //============================================================================
 endmodule
