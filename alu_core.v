@@ -29,8 +29,9 @@ module alu_core(
     input [7:0] op_in_1, // first operand
     input [7:0] op_in_2, // second operand
     
-    input carry_in,
-    input aux_carry_in,
+    input carry_in,     
+    input aux_carry_in, 
+    input bit_in,          
     
     output reg overflow_out,
     output reg aux_carry_out,
@@ -152,6 +153,26 @@ case (alu_opcode)
     `ALU_SWAP: begin
     
         op_out_1 = {op_in_1[3:0],op_in_1[7:4]};
+        
+    end
+    
+    `ALU_ORL: begin
+        
+        op_out_1 = op_in_1 | op_in_2;
+        carry_out = carry_in | bit_in;
+        
+    end
+    
+    `ALU_XRL: begin
+        
+        op_out_1 = op_in_1 | op_in_2;
+    
+    end
+    
+    `ALU_ANL: begin
+        
+        op_out_1 = op_in_1 | op_in_2;
+        carry_out = carry_in | bit_in;
         
     end
     

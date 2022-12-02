@@ -23,14 +23,19 @@ module tb_alu_v1;
     // Inputs
 	reg clock;
 	reg reset;
-    reg [3:0] alu_code;
+    reg [4:0] alu_code;
     reg [7:0] src_1, src_2;
-    reg cy, aux_cy;
+    reg cy, aux_cy,bit;
     
     //Outputs
     wire [7:0] des_1, des_2;
     wire cy_out, ac_out, ov_out;
-        
+    
+    //Simulate execution cycle
+    //reg [4:0] alu_code_mem[0:32];
+    reg [4:0] pc;  
+    
+      
     alu_core alu_core_module(
         .clock(clock),
         .reset(reset),
@@ -39,6 +44,7 @@ module tb_alu_v1;
         .op_in_2(src_2), // second operand
         .carry_in(cy),
         .aux_carry_in(aux_cy),
+        .bit_in(bit),
         .overflow_out(ov_out),
         .aux_carry_out(ac_out),
         .carry_out(cy_out),
@@ -49,25 +55,25 @@ module tb_alu_v1;
 	initial begin
 		// Initialize Inputs
 		clock =1'b0;
-		reset = 1'b1;
-		cy = 1'b0;
-		aux_cy = 1'b0;
-	    alu_code = 4'b0001;
-	    src_1 = 8'h20;
-	    src_2 = 8'h40;
-		// Wait 20 ns for global reset to finish
-		#10;
 		reset = 1'b0;
-		#20
-		alu_code = 4'b0010;
-		#20;
-		alu_code = 4'b0100;
-		#20;
-		alu_code = 4'b0101;
-		#20;
-		alu_code = 4'b0111;
-		#20;
+		pc = 0;
+		cy = 1'b1;
+		aux_cy = 1'b0;
+		bit = 1'b1;
+	    alu_code = 5'b00000;
+	    src_1 = 8'h40;
+	    src_2 = 8'h20;
+		
 
 	end
 always #5 clock = ~clock;
+
+always @(posedge clock)
+begin
+    pc = pc + 1'b1;
+    if(alu_code < 5'b10001)
+        alu_code = alu_code + 5'b00001;
+end
+
+
 endmodule

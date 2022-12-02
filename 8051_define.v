@@ -21,20 +21,25 @@
 
 // - Define codes for ALU
 
-`define ALU_INC 4'b 0000
-`define ALU_DEC 4'b 0001
-`define ALU_ADD 4'b 0010
-`define ALU_ADDC 4'b 0011
-`define ALU_SUBB 4'b 0100
-`define ALU_MUL 4'b 0101
-`define ALU_DIV 4'b 0110
-`define ALU_RR 4'b 0111
-`define ALU_RRC 4'b 1000
-`define ALU_RL 4'b 1001
-`define ALU_RLC 4'b 1010
-`define ALU_CPL 4'b 1011
-`define ALU_DA 4'b 1100
-`define ALU_SWAP 4'b 1101
+`define ALU_NOP     5'b00000
+`define ALU_INC     5'b00001
+`define ALU_DEC     5'b00010
+`define ALU_ADD     5'b00011
+`define ALU_ADDC    5'b00100
+`define ALU_SUBB    5'b00101
+`define ALU_MUL     5'b00110
+`define ALU_DIV     5'b00111
+`define ALU_RR      5'b01000
+`define ALU_RRC     5'b01001
+`define ALU_RL      5'b01010
+`define ALU_RLC     5'b01011
+`define ALU_CPL     5'b01100
+`define ALU_DA      5'b01101
+`define ALU_SWAP    5'b01110
+`define ALU_ORL     5'b01111
+`define ALU_XRL     5'b10000
+`define ALU_ANL     5'b10001
+
 
 
 
