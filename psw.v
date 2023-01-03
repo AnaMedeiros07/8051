@@ -19,12 +19,7 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
-`define NO_SET          2'b00
-`define CY_SET          2'b01
-`define CY_OV_SET       2'b10
-`define CY_OV_AC_SET    2'b11
-`define PSW_SFR_ADDR    8'hD0
-`define PSW_SFR_B_ADDR  5'b11010
+`include "define_opcodes.v"
 
 module psw(
     input clock,
@@ -62,10 +57,10 @@ begin
     if(reset)
         data= 8'h00;
     else begin 
-        if(write_en & !write_bit_en & (addr == `PSW_SFR_ADDR))
+        if(write_en & !write_bit_en & (addr == `SFR_PSW))
             data [7:1] = data_in [7:1];
             
-        else if(write_en & write_bit_en & (addr[7:3] == `PSW_SFR_B_ADDR))
+        else if(write_en & write_bit_en & (addr[7:3] == `SFR_B_PSW))
             data[addr[2:0]]= carry_in;
             
         else begin

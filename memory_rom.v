@@ -22,14 +22,15 @@
 
 module memory_rom
 
-#(parameter DATA_WIDTH = 65536, parameter ADDRESS_WIDTH = 16, parameter INIT_FILE = "init_rom")
+#(parameter DATA_WIDTH = 65536, parameter ADDRESS_WIDTH = 8, parameter INIT_FILE = "init_rom")
 (
     input [(ADDRESS_WIDTH-1):0] addr, // FFFFh
     input clock,
+    input reset,
     output [(DATA_WIDTH-1):0] out// word
 );
 
-reg [15:0] out;
+reg [8:0] out;
 reg [(DATA_WIDTH-1):0] ROM [(ADDRESS_WIDTH-1):0];
 
 initial if (INIT_FILE) begin
@@ -38,8 +39,14 @@ initial if (INIT_FILE) begin
      
 end 
 
+always @(posedge reset)
+begin
+    for (integer i=0; i<=DATA_WIDTH;i=i+1) begin
+        ROM[i] = 8'h00;
+    end  
+end
 always @(posedge clock)
 begin
-    out<= ROM[addr];
+      out<= ROM[addr];
 end
 endmodule
