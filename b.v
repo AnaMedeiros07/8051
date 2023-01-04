@@ -32,15 +32,12 @@ module b_sfr(
         input wr_bit_en,
         input bit_in,
         
-        output b_data,
-        output p
+        output b_data
     );
     
 reg [7:0] b_data;
 
 wire wr_b, wr_bit_b;
-
-assign p = ^b_data;
 
 assign wr_b = (wr_en & !wr_bit_en & addr == `SFR_B);
 assign wr_bit_b = (wr_en & wr_bit_en & addr == `SFR_B_B);

@@ -33,7 +33,7 @@ module acc_sfr(
         input bit_in,
         
         output acc_data,
-        output p
+        output parity
     );
     
 reg [7:0] acc_data;
