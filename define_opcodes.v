@@ -1,6 +1,92 @@
 //
 // instruction set
+//-------SFR Addresses
+// sfr addresses
 //
+`define SFR_ACC 8'he0 //accumulator
+`define SFR_B 8'hf0 //b register
+`define SFR_PSW 8'hd0 //program status word
+`define SFR_P0 8'h80 //port 0
+`define SFR_P1 8'h90 //port 1
+`define SFR_P2 8'ha0 //port 2
+`define SFR_P3 8'hb0 //port 3
+`define SFR_DPTR_LO 8'h82 // data pointer high bits
+`define SFR_DPTR_HI 8'h83 // data pointer low bits
+`define SFR_IP0 8'hb8 // interrupt priority
+`define SFR_IEN0 8'ha8 // interrupt enable 0
+`define SFR_TMOD 8'h89 // timer/counter mode
+`define SFR_TCON 8'h88 // timer/counter control
+`define SFR_TH0 8'h8c // timer/counter 0 high bits
+`define SFR_TL0 8'h8a // timer/counter 0 low bits
+`define SFR_TH1 8'h8d // timer/counter 1 high bits
+`define SFR_TL1 8'h8b // timer/counter 1 low bits
+
+`define SFR_SCON 8'h98 // serial control 0
+`define SFR_SBUF 8'h99 // serial data buffer 0
+`define SFR_SADDR 8'ha9 // serila address register 0
+`define SFR_SADEN 8'hb9 // serila address enable 0
+
+`define SFR_PCON 8'h87 // power control
+`define SFR_SP 8'h81 // stack pointer
+
+
+`define SFR_IE 8'ha8 // interrupt enable
+`define SFR_IP 8'hb7 // interrupt priority
+
+`define SFR_RCAP2H 8'hcb // timer 2 capture high
+`define SFR_RCAP2L 8'hca // timer 2 capture low
+
+`define SFR_T2CON 8'hc8 // timer 2 control register
+`define SFR_TH2 8'hcd // timer 2 high
+`define SFR_TL2 8'hcc // timer 2 low
+
+// ----- SFR bit addressable ----------
+
+`define SFR_B_ACC 5'b11100 //accumulator
+`define SFR_B_PSW 5'b11010 //program status word
+`define SFR_B_P0  5'b10000 //port 0
+`define SFR_B_P1  5'b10010 //port 1
+`define SFR_B_P2  5'b10100 //port 2
+`define SFR_B_P3  5'b10110 //port 3
+`define SFR_B_B   5'b11110 // b register
+`define SFR_B_IP  5'b10111 // interrupt priority control 0
+`define SFR_B_IE  5'b10101 // interrupt enable control 0
+`define SFR_B_SCON 5'b10011 // serial control
+`define SFR_B_TCON  5'b10001 // timer/counter control
+`define SFR_B_T2CON 5'b11001 // timer/counter2 control
+
+//---------PSW_aux-----------
+`define NO_SET          2'b00
+`define CY_SET          2'b01
+`define CY_OV_SET       2'b10
+`define CY_OV_AC_SET    2'b11
+
+//----------Bank------------
+`define BanK_3_offset 8'b10001111 // 1fh
+`define BanK_2_offset 8'b00100111 //17h
+`define BanK_1_offset 8'b00000111 //07h
+`define BanK_0_offset 8'b00000000 //0h
+
+// - Define codes for ALU
+
+`define ALU_NOP     5'b00000
+`define ALU_INC     5'b00001
+`define ALU_DEC     5'b00010
+`define ALU_ADD     5'b00011
+`define ALU_ADDC    5'b00100
+`define ALU_SUBB    5'b00101
+`define ALU_MUL     5'b00110
+`define ALU_DIV     5'b00111
+`define ALU_RR      5'b01000
+`define ALU_RRC     5'b01001
+`define ALU_RL      5'b01010
+`define ALU_RLC     5'b01011
+`define ALU_CPL     5'b01100
+`define ALU_DA      5'b01101
+`define ALU_SWAP    5'b01110
+`define ALU_ORL     5'b01111
+`define ALU_XRL     5'b10000
+`define ALU_ANL     5'b10001
 
 //op_code [4:0]
 `define ACALL 	8'bxxx10001 // absolute call
@@ -12,7 +98,7 @@
 `define ADD_R 	8'b00101xxx // ADD A,R0 A=A+Rn
 `define ADDC_R 	8'b00111xxx // ADD A,Rn A=A+Rx+c
 `define ORL_R 	8'b0100_1xxx // or A=A or Rn
-`define ANL_R 	8'b0101_1xxx // and A=A^Rx
+`define ANL_R 	8'b0101_1xxx // ANL A, Rn and A=A^Rx
 `define XRL_R 	8'b0110_1xxx // XOR A=A XOR Rn
 `define MOV_CR 	8'b0111_1xxx // move Rn=constant
 `define MOV_RD 	8'b1000_1xxx // move (direct)=Rn
@@ -49,12 +135,12 @@
 `define ADD_C 	8'b00100100 // ADD A,#immediate A=A+immediate
 `define ADDC_D 	8'b00110101 // ADDC A,direct A=A+(direct)+c
 `define ADDC_C 	8'b00110100 // ADDC A,#immediate  A=A+immediate+c
-`define ANL_D 	8'b01010101 // and A=A^(direct)
+`define ANL_D 	8'b01010101 // ANL A, direct and A=A^(direct)
 `define ANL_C 	8'b01010100 // ANL A, immediate and A=A^constant
-`define ANL_AD 	8'b01010010 // and (direct)=(direct)^A
-`define ANL_DC 	8'b01010011 // and (direct)=(direct)^constant
-`define ANL_B 	8'b10000010 // and c=c^bit
-`define ANL_NB 	8'b10110000 // and c=c^!bit
+`define ANL_AD 	8'b01010010 // ANL direct, A and (direct)=(direct)^A
+`define ANL_DC 	8'b01010011 // ANL direct, #immediate and (direct)=(direct)^constant
+`define ANL_B 	8'b10000010 // ANL C, bit and c=c^bit
+`define ANL_NB 	8'b10110000 // ANL C, /bit and c=c^!bit
 `define CJNE_D 	8'b1011_0101 // compare and jump if not equal; a<>(direct)
 `define CJNE_C 	8'b1011_0100 // compare and jump if not equal; a<>constant
 `define CLR_A 	8'b1110_0100 // clear accumulator
@@ -63,7 +149,7 @@
 `define CPL_A 	8'b1111_0100 // complement accumulator
 `define CPL_C 	8'b1011_0011 // complement carry
 `define CPL_B 	8'b1011_0010 // complement bit
-`define DA 	8'b11010100 // decimal adjust (A)
+`define DA 	    8'b11010100 // decimal adjust (A)
 `define DEC_A 	8'b0001_0100 // decrement accumulator a=a-1
 `define DEC_D 	8'b0001_0101 // decrement direct (direct)=(direct)-1
 `define DIV 	8'b1000_0100 // divide
@@ -79,6 +165,7 @@
 `define JNC 	8'b0101_0000 // jump if carry not set
 `define JNZ 	8'b0111_0000 // jump if accumulator not zero
 `define JZ 		8'b0110_0000 // jump if accumulator zero
+`define LCALL 	8'b0001_0010 // long call
 `define LCALL 	8'b0001_0010 // long call
 `define LJMP 	8'b0000_0010 // long jump
 `define MOV_D 	8'b1110_0101 // move A=(direct)
@@ -105,9 +192,9 @@
 `define PUSH 	8'b1100_0000 // stack push
 `define RET 	8'b0010_0010 // return from subrutine
 `define RETI 	8'b0011_0010 // return from interrupt
-`define RL 	8'b00100011 // rotate left
+`define RL 	    8'b00100011 // rotate left
 `define RLC 	8'b00110011 // rotate left thrugh carry
-`define RR 	8'b00000011 // rotate right
+`define RR 	    8'b00000011 // rotate right
 `define RRC 	8'b0001_0011 // rotate right thrugh carry
 `define SETB_C 	8'b1101_0011 // set carry
 `define SETB_B 	8'b1101_0010 // set bit
