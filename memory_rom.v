@@ -22,31 +22,26 @@
 
 module memory_rom
 
-#(parameter DATA_WIDTH = 65536, parameter ADDRESS_WIDTH = 8, parameter INIT_FILE = "init_rom")
+#(parameter DATA_WIDTH = 65536, parameter ADDRESS_WIDTH = 8, parameter INIT_FILE = "init_rom.mem")
 (
-    input [(ADDRESS_WIDTH-1):0] addr, // FFFFh
+    input [(10-1):0] addr, // FFFFh
+    input rd_rom,
     input clock,
     input reset,
-    output [(DATA_WIDTH-1):0] out// word
+    output reg [23:0] out// word
 );
 
-reg [8:0] out;
-reg [(DATA_WIDTH-1):0] ROM [(ADDRESS_WIDTH-1):0];
 
-initial if (INIT_FILE) begin
+reg [(ADDRESS_WIDTH-1):0]ROM [(DATA_WIDTH-1):0] ;
 
-    $readmemh(INIT_FILE,ROM);  
-     
-end 
+initial $readmemb("init_rom.mem", ROM);
 
-always @(posedge reset)
-begin
-    for (integer i=0; i<=DATA_WIDTH;i=i+1) begin
-        ROM[i] = 8'h00;
-    end  
-end
+//reads 3 in one clock cycle
 always @(posedge clock)
 begin
-      out<= ROM[addr];
+      //out<=ROM[addr];
+      out[23:16] <= ROM[addr];
+      out[15:8] <= ROM[addr+1];
+      out[7:0] <= ROM[addr+2];
 end
 endmodule

@@ -32,10 +32,8 @@ module b_sfr(
         input wr_bit_en,
         input bit_in,
         
-        output b_data
+        output reg [7:0] b_data
     );
-    
-reg [7:0] b_data;
 
 wire wr_b, wr_bit_b;
 

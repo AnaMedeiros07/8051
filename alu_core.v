@@ -18,7 +18,7 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
-`include "8051_define.v"
+`include "define_opcodes.v"
 
 module alu_core(
     input clock,
@@ -183,4 +183,3 @@ end
 
  
 endmodule
-

@@ -18,50 +18,68 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
-`define Stack_addr 8'h81
-`define Stack_init 8'h07
 
-module sp(
+`include"define_opcodes.v"
+
+module sp (
     input clock,
     input reset,
     
-    input push, 
+    input [7:0] wr_addr, // Addr where we need to write
+    
+    input ram_rd,// rd from memory
+    input ram_wr, // wr from memory
+    
+    input wr_bit,
+    
+    input push,
     input pop,
     
-    input ram_read, 
-    input ram_write,
+    input [7:0] data_in,
     
-    input [7:0] data_in, // data to write in the stack
-    
-    output reg [7:0] sp_out, // value of the stack
-    output reg [7:0] sp_w   // write in the stack memory
-    
-    );
+    output [7:0] sp_out, //value of the stack pointer
+    output [7:0] sp_w   // value to write in the memory
+ );
+
+
+
+reg [7:0] sp_out, sp_w;
+wire write;
+wire [7:0] sp_t;
 
 reg [7:0] sp;
 
-initial begin
-    sp = `Stack_init;
+
+assign write = ((wr_addr==`SFR_SP) & (ram_wr) & !(wr_bit));
+
+assign sp_t= write ? data_in : sp;
+
+
+always @(posedge clock or posedge reset)
+begin
+  if (reset)
+    sp <= `RST_SP; // reset to 07h
+  else if (write)
+    sp <= data_in; // value to write in the push 
+  else
+    sp <= sp_out; // current stackpointer value
 end
 
-always @(posedge reset or posedge clock)
+
+always @(push & write)
 begin
-    if (reset)begin
-        sp = `Stack_init; // initial position of stackpointer
-    end
-    
+
+    sp_w = sp_t;  // data to write in the stack
+    sp_out = sp_t + 8'h01; // increase the stack
 
 end
-always @(posedge push)
+
+always @(pop & ram_rd & sp_out > `RST_SP) // if is possible read, pop is ative and the value os the spatck_pointer in greater than 07h
 begin
-    sp = sp + 8'h01;
-    sp_out = sp;
-    sp_w = data_in;
-end
-always @(posedge pop && sp!= `Stack_init)
-begin
-    sp = sp - 8'h01;
-    sp_out = sp;
+
+    sp_w = 8'h00; // clean the data
+    sp_out = sp_t - 8'h01; // decrease the stack
+
 end
 
 endmodule

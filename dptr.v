@@ -26,6 +26,7 @@ module dptr(
     input reset,
     
     input wr,
+    input wr_bit,
     input addr,
     
     input [7:0] data_in,
@@ -41,10 +42,10 @@ begin
         data_h = 8'h00;
         data_l = 8'h00;
     end
-    else if (addr==`SFR_DPTR_HI && wr)begin
+    else if (addr==`SFR_DPTR_HI && wr && !(wr_bit))begin
         data_l=data_in;
     end
-    else if (addr==`SFR_DPTR_LO && wr)begin
+    else if (addr==`SFR_DPTR_LO && wr && !(wr_bit))begin
         data_h=data_in;
     end
     

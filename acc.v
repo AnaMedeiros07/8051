@@ -32,11 +32,10 @@ module acc_sfr(
         input wr_bit_en,
         input bit_in,
         
-        output acc_data,
+        output reg [7:0] acc_data,
         output parity
     );
     
-reg [7:0] acc_data;
 
 wire wr_acc, wr_bit_acc;
 

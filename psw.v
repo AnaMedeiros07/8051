@@ -28,8 +28,8 @@ module psw(
     input carry_in,
     input aux_carry_in,
     input overflow_in,
-    input parity,
     input [7:0] data_in,
+    input [7:0] acc_in,
     input [7:0]addr,
     input write_en,
     input write_bit_en,
@@ -50,7 +50,7 @@ module psw(
     Data [7] - Carry Flag
     */
     
-    assign psw_data = {data[7:1],parity};
+    assign psw_data = data;
 
 always @(posedge clock or posedge reset)
 begin
@@ -85,6 +85,8 @@ begin
                     end
             endcase
         end
+    
+    data[0]= ^acc_in; //parity update
     end
     
     

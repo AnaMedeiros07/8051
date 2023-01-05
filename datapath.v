@@ -26,7 +26,10 @@
 module datapath(
         input clock,
         input reset,
-        input [7:0] A,
+        output ready,
+        input Execute,
+        input Fetch,
+        input Decode,
         output [7:0] Opcode
         
         
@@ -44,16 +47,20 @@ wire [7:0] des_1, des_2;
 wire cy_out, ac_out, ov_out;
 
 //====RAM==
-reg Memrd,Memwr,in_data,in_bit,bit_addr,is_bit,indirect_flag,addr_ram;
+reg Memrd,Memwr,in_bit,bit_addr,is_bit,indirect_flag;
+reg [7:0] addr_ram;
+reg [7:0] in_data;
 
 //Outputs
-reg out_data,out_bit;
+wire [7:0] out_data;
+wire out_bit;
 
 //===ROM===
-reg addr_rom,rom_r;
+reg rd_rom;
+reg [9:0]addr_rom;
 
 //Output
-reg out_rom;
+wire [23:0] out_rom;
 
 //=== PSW=====
 reg [7:1] data_in;
@@ -63,28 +70,39 @@ reg [2:0] bit_addr_psw;
 reg [1:0] flag_set;
 
 //Output
- reg [7:0] psw_data;
+ wire [7:0] psw_data;
  
  //=== DPTR===
  reg [7:0] data_in1;
  reg[7:0] data_in2;
  
  //Output
- reg [7:0] data_h;
-  reg [7:0] data_l;
+ wire [7:0] data_h;
+ wire [7:0] data_l;
+ 
+ // ==== Acc and b ====
+ reg wr_en_acc,wr_en_b;
   
+  wire [7:0] acc_data;
+  wire [7:0] b_data;
  // === Aux_Variables===
  reg [1:0] Bank;
+ reg [23:0] instruction;
  reg [7:0] offset;
  reg [7:0] addr1;
  reg [7:0] addr2; 
+ reg [2:0] cycles;
+ reg ready;
+ reg [2:0] count_clock;
  
 //== Registers ==
 reg [15:0] PC;
 reg [7:0] IR;
+reg [7:0] PSW;
+reg [7:0] A;
 
 
-                 
+//-------------------------------------------------------------------------------                 
 // -------------- intanciate the memory_ram --------------------------------
 memory_ram RAM(
     .clock(clock),
@@ -120,12 +138,13 @@ alu_core alu_core_module(
 //--------------------------------------------------------------------------------
 //--------------------------intanciate the ROM-------------------------------------
 memory_rom ROM(
-    .clock(clock),
+    .clock(clock), 
     .reset(reset),
     .addr(addr_rom),
     .out(out_rom)
 );
-//------------------------intanciate PSW------------------------------------------
+//---------------------------------------------------------------------------------
+//----------------------------intanciate PSW------------------------------------------
  psw psw_module(
         .clock(clock),
         .reset(reset),
@@ -136,347 +155,180 @@ memory_rom ROM(
         .acc_in(acc),
         .write_en(write_en),
         .write_bit_en(write_bit_en),
-        .bit_addr(bit_addr_psw),
+        .addr(bit_addr_psw),
         .flag_set(flag_set),
         .psw_data(psw_data) 
         );
+//---------------------------------------------------------------------------------------
+//---------------------------intanciate DPTR--------------------------------------------
 dptr dptr_module(
         .clock(clock),
         .reset(reset),
+        .wr_bit(wr_bit),
         .wr(Memwr),
         .addr(addr_ram),
         .data_in(in_data),
         .data_h(data_h),
         .data_l(data_l)
     );
+//---------------------------------------------------------------------------------------
+//--------------------------------intanciate Acc-----------------------------------------
+acc_sfr acc_module(
+     .clock(clock),
+     .reset(reset),
+     .data_in(in_data),
+     .addr(addr_ram),
+     .wr_en(wr_en_acc),
+     .wr_bit_en(is_bit),
+     .bit_in(in_bit),
+     .acc_data(acc_data),
+     .parity(a_parity)
+    );
+//-------------------------------------------------------------------------------------------
+//-------------------------------intanciate B----------------------------------------------
+b_sfr b_module(
+     .clock(clock),
+     .reset(reset),
+     .data_in(in_data),
+     .addr(addr_ram),
+     .wr_en(wr_en_b),
+     .wr_bit_en(is_bit),
+     .bit_in(bit_in),
+     .b_data(b_data)
+    );
 //---------------------------------------------------------------------------------
 //---------------------Variables to do the decode ------------------------------ 
 
-// --------------Reset / Start--------------------------
-always @ (posedge clock)
+initial begin
+   addr_rom = 8'h00;
+    addr_ram= 8'h00;
+    PC = 16'h0000;
+    count_clock = 3'b000; 
+    end
+    // --------------Reset / Start--------------------------
+always @ (posedge reset)
 begin 
     addr_rom = 8'h00;
     addr_ram= 8'h00;
     PC = 16'h0000;
+    count_clock = 3'b000;
 end
 
 //-------------------Fetch-----------------------
 always @ (posedge clock)
 begin 
-    addr_rom = PC;
-    IR = out_rom;
-    PC = PC + 1;
-    addr1= out_rom;
-    PC = PC + 1;
-    addr2 = out_rom;
-    PC = PC + 1;
-    // PSW and A
+    if(Fetch == 1'b1) begin
+        addr_rom = PC;
+        instruction = out_rom;
+        IR= instruction[23:16];
+        addr1= instruction[15:8];
+        addr2= instruction[7:0];
+        PC = PC + 3;
+        PSW = psw_data;
+        A = acc_data;
+        ready = 1'b0;
+    end  
 end
 //----------------------------------------------
 assign Opcode = IR[7:0];
 //-------------Decode------------------------------
 always @ (posedge clock)
 begin 
-        Bank = psw_data[3:4];
-        if (Bank == 2'b00 )begin
-            offset = `BanK_0_offset;
-        end
-         if (Bank == 2'b01 )begin
-            offset = `BanK_1_offset;
-        end
-         if (Bank == 2'b10 )begin
-            offset = `BanK_2_offset;
-        end
-         if (Bank == 2'b11 )begin
-            offset = `BanK_3_offset;
-        end
-begin : Decode
-        case(Opcode)
-            `ADD_R:begin                          // ADD A,R0 A=A+Rn
-                alu_code = `ALU_ADD;
-                Memwr=1'b0;
-                Memrd= 1'b1;
-                is_bit=1'b0;
-                indirect_flag=1'b0;
-                addr_ram = addr1;
-                src_1= out_data;
-                addr_ram =  addr2 + offset;
-                src_2 = out_data;
-                flag_set = `CY_OV_AC_SET;
-             end
-            `ADDC_R: begin                      // ADD A,Rn A=A+Rx+c
-               alu_code = `ALU_ADDC;
-               Memwr=1'b0;
-               Memrd= 1'b1;
-               is_bit=1'b0;
-               indirect_flag=1'b0;
-               addr_ram = addr1;
-               src_1= out_data;
-               addr_ram =  addr2+ offset;
-               src_2 = out_data;
-               flag_set = `CY_OV_AC_SET;
-             end
-             `ADD_I: begin                        //ADD A,@Ri A= A+ Ri
-                alu_code = `ALU_ADD;
-                Memwr=1'b0;
-                Memrd= 1'b1;
-                is_bit=1'b0;
-                indirect_flag=1'b0;
-                addr_ram = addr1;
-                src_1= out_data;
-                addr_ram =  addr2 + offset;
-                // Read the indirect memory of the addr
-                addr_ram = out_data;
-                indirect_flag=1'b1;
-                src_2 = out_data;
-                flag_set = `CY_OV_AC_SET;
-             end
-            `ADDC_I: begin                      // ADDC A,@Ri A=A+Ri+c
-                Memwr=1'b0;
-                Memrd= 1'b1;
-                is_bit=1'b0;
-                indirect_flag=1'b0;
-                alu_code = `ALU_ADDC;
-                addr_ram = addr1;
-                src_1= out_data;
-                addr_ram =  addr2 + offset;
-                // Read the indirect memory of the addr
-                addr_ram = out_data;
-                indirect_flag=1'b1;
-                src_2 = out_data;
-                flag_set = `CY_OV_AC_SET;
-             end
-            `ADD_D: begin                            //ADD A,direct A= A+direct
-                 alu_code = `ALU_ADD;
-                 Memwr=1'b0;
-                 Memrd= 1'b1;
-                 is_bit=1'b0;
-                 indirect_flag=1'b0;
-                 addr_ram = addr1;
-                 src_1= out_data;
-                 addr_ram =  addr2;
-                 src_2=out_data;
-                 flag_set = `CY_OV_AC_SET;
+    if (Decode == 1'b1 ) begin
+            Bank = PSW[4:3];
+            if (Bank == 2'b00 )begin
+                offset = `BanK_0_offset;
             end
-            `ADDC_D:begin                        // ADDC A,direct A=A+(direct)+c
-                 alu_code = `ALU_ADDC;
-                 Memwr=1'b0;
-                 Memrd= 1'b1;
-                 is_bit=1'b0;
-                 indirect_flag=1'b0;
-                 addr_ram = addr1;
-                 src_1= out_data;
-                 addr_ram =  addr2;
-                 src_2=out_data;
-                 flag_set = `CY_OV_AC_SET;
-             end
-            `ADD_C: begin                     // ADD A,#immediate A=A+immediate
-                 alu_code = `ALU_ADD;
-                 Memwr=1'b0;
-                 Memrd= 1'b1;
-                 is_bit=1'b0;
-                 indirect_flag=1'b0;
-                 addr_ram = addr1;
-                 src_1= out_data;
-                 addr_ram =  addr2;
-                 src_2=out_data;
-                 flag_set = `CY_OV_AC_SET;
-             end
-            `ADDC_C:begin                            // ADDC A,#immediate 
-                 alu_code = `ALU_ADDC;
-                 Memwr=1'b0;
-                 Memrd= 1'b1;
-                 is_bit=1'b0;
-                 indirect_flag=1'b0;
-                 addr_ram = addr1;
-                 src_1= out_data;
-                 src_2=addr2;
-                 flag_set = `CY_OV_AC_SET;
-             end
-             `INC_A:begin                            // increment accumulator
-                 alu_code = `ALU_INC;
-                 Memwr=1'b0;
-                 Memrd= 1'b1;
-                 is_bit=1'b0;
-                 indirect_flag=1'b0;
-                 addr_ram = addr1;
-                 src_1= out_data;
-                 flag_set = `NO_SET;
-             end
-             `INC_D:begin                            // increment direct 
-                 alu_code = `ALU_INC;
-                 Memwr=1'b0;
-                 Memrd= 1'b1;
-                 is_bit=1'b0;
-                 indirect_flag=1'b0;
-                 addr_ram = addr1;
-                 src_1 = out_data;
-                 flag_set = `NO_SET;
-             end
-             `INC_DP:begin                            // increment data pointer
-                 alu_code = `ALU_INC;
-                 flag_set = `NO_SET;
-                 src_1=data_l;
-                 src_2 = data_h;
-                 Memwr = 1'b1;
-                 Memrd= 1'b0;
-                 is_bit=1'b0;
-                 indirect_flag=1'b0;
-                 addr_ram = `SFR_DPTR_LO;
-                 in_data =des_1;
-                 addr_ram = `SFR_DPTR_HI;
-                 in_data = des_2;
-             end
-            `SUBB_R: begin                                     // SUBB A,Rn  
-                alu_code = `ALU_SUBB;
-                Memwr=1'b0;
-                Memrd= 1'b1;
-                is_bit=1'b0;
-                indirect_flag=1'b0;
-                addr_ram = addr1;
-                src_1= out_data;
-                addr_ram =  addr2 + offset;
-                src_2 = out_data;
-                flag_set = `CY_OV_AC_SET;
+             if (Bank == 2'b01 )begin
+                offset = `BanK_1_offset;
             end
-            `SUBB_I: begin                                    // SUBB A,@Ri
-                alu_code = `ALU_SUBB;
-                Memwr=1'b0;
-                Memrd= 1'b1;
-                is_bit=1'b0;
-                indirect_flag=1'b0;
-                addr_ram = addr1;
-                src_1= out_data;
-                addr_ram =  addr2 + offset;
-                // Read the indirect memory of the addr
-                addr_ram = out_data;
-                indirect_flag=1'b1;
-                src_2 = out_data;
-                flag_set = `CY_OV_AC_SET;
+             if (Bank == 2'b10 )begin
+                offset = `BanK_2_offset;
             end
-            `SUBB_D: begin                                     // SUBB A,direct
-                alu_code = `ALU_SUBB;
-                Memwr=1'b0;
-                Memrd= 1'b1;
-                is_bit=1'b0;
-                indirect_flag=1'b0;
-                addr_ram = addr1;
-                src_1= out_data;
-                addr_ram =  addr2;
-                src_2=out_data;
-                flag_set = `CY_OV_AC_SET;
-             end
-            `SUBB_C: begin                                   //SUBB A, #immediate
-                alu_code = `ALU_SUBB;
-                flag_set = `CY_OV_AC_SET;
-             end
-              `DEC_A:begin                          // decrement A
-                 alu_code = `ALU_DEC;
-                 flag_set = `NO_SET;
-             end
-             `DEC_D:begin                            // decrement direct
-                 alu_code = `ALU_DEC;
-                 flag_set = `NO_SET;
-             end
-             `DIV: begin                                   
-                alu_code = `ALU_DIV;
-                flag_set = `CY_OV_SET;
-             end
-             `MUL: begin                                   
-                alu_code = `ALU_MUL;
-                flag_set = `CY_OV_SET;
-             end
-             `RL: begin                                   
-                alu_code = `ALU_RL;
-                flag_set = `NO_SET;
-             end
-             `RLC: begin                                   
-                alu_code = `ALU_RLC;
-                flag_set = `NO_SET;
-             end
-             `RR: begin                                   
-                alu_code = `ALU_RR;
-                flag_set = `NO_SET;
-             end
-             `RRC: begin                                   
-                alu_code = `ALU_RRC;
-                flag_set = `NO_SET;
-             end
-             `DA: begin                                  
-                alu_code = `ALU_DA;
-                flag_set = `CY_SET;
-             end
-             `XRL_D:begin                            // XOR A=A XOR (direct)
-                 alu_code = `ALU_XRL;
-                 flag_set = `NO_SET;
-             end
-              `XRL_C:begin                            // XOR A=A XOR constant
-                 alu_code = `ALU_XRL;
-                 flag_set = `NO_SET;
-             end
-              `XRL_AD:begin                           // XOR (direct)=(direct) XOR A
-                 alu_code = `ALU_XRL;
-                 flag_set = `NO_SET;
-             end
-              `XRL_CD:begin                           // XOR (direct)=(direct) XOR constant
-                 alu_code = `ALU_XRL;
-                 flag_set = `NO_SET;
-             end
-              `XRL_I:begin                             // XOR A=A XOR @Ri
-                 alu_code = `ALU_XRL;
-                 flag_set = `NO_SET;
-             end
-              `ANL_D:begin                          // ANL A, direct and A=A^(direct)   
-                 alu_code = `ALU_ANL;
-                 flag_set = `NO_SET;
-             end
-              `ANL_C:begin                         // ANL A, immediate and A=A^constant
-                 alu_code = `ALU_ANL;
-                 flag_set = `NO_SET;
-             end
-              `ANL_AD:begin                        // ANL direct, A and (direct)=(direct)^A    
-                 alu_code = `ALU_ANL;
-                 flag_set = `NO_SET;
-             end
-              `ANL_DC:begin                      // ANL direct, #immediate and (direct)=(direct)^constant 
-                 alu_code = `ALU_ANL;
-                 flag_set = `NO_SET;
-             end
-              `ANL_B:begin                       // ANL C, bit and c=c^bit
-                 alu_code = `ALU_ANL;
-                 flag_set = `NO_SET;
-             end
-              `ANL_NB:begin                      // ANL C, /bit and c=c^!bit       
-                 alu_code = `ALU_ANL;
-                 flag_set = `NO_SET;
-             end
-             `ORL_D:begin                          // ANL A, direct and A=A^(direct)   
-                 alu_code = `ALU_ORL;
-                 flag_set = `NO_SET;
-             end
-              `ORL_C:begin                         // ANL A, immediate and A=A^constant
-                 alu_code = `ALU_ORL;
-                 flag_set = `NO_SET;
-             end
-              `ORL_AD:begin                        // ANL direct, A and (direct)=(direct)^A    
-                 alu_code = `ALU_ORL;
-                 flag_set = `NO_SET;
-             end
-              `ORL_CD:begin                      // ANL direct, #immediate and (direct)=(direct)^constant 
-                 alu_code = `ALU_ORL;
-                 flag_set = `NO_SET;
-             end
-              `ORL_B:begin                       // ANL C, bit and c=c^bit
-                 alu_code = `ALU_ORL;
-                 flag_set = `NO_SET;
-             end
-              `ORL_NB:begin                      // ANL C, /bit and c=c^!bit       
-                 alu_code = `ALU_ORL;
-                 flag_set = `NO_SET;
-             end
-             default: begin
-             end
-        endcase 
+             if (Bank == 2'b11 )begin
+                offset = `BanK_3_offset;
+            end
+    begin : Decocer1
+            case(Opcode[4:0])
+                `ACALL:begin
+                 end
+                 `AJMP:begin
+                 end
+                 default: begin
+                 end
+            endcase
+    end
+    begin : Decoder2
+            case(Opcode[7:3])
+                `ADD_R:begin                          // ADD A,R0 A=A+Rn
+                    alu_code = `ALU_ADD;
+                    Memwr =1'b0;
+                    Memrd= 1'b1; 
+                    indirect_flag = 1'b0;
+                    is_bit = 1'b0;
+                    addr_ram = Opcode[2:0] + offset;
+                    src_2 = out_data;
+                    src_1 = acc_data;
+                    flag_set = `CY_OV_AC_SET;
+                 end
+                `ADDC_R: begin                      // ADD A,Rn A=A+Rx+c
+                   alu_code = `ALU_ADDC;
+                   flag_set = `CY_OV_AC_SET;
+                 end
+                 `INC_R:begin                            // increment accumulator
+                     alu_code = `ALU_INC;
+                    
+                     flag_set = `NO_SET;
+                 end
+                `SUBB_R: begin                                     // SUBB A,Rn  
+                    alu_code = `ALU_SUBB;
+                 
+                    flag_set = `CY_OV_AC_SET;
+                end
+                `DEC_R:begin                          // decrement reg
+                     alu_code = `ALU_DEC;
+                     flag_set = `NO_SET;
+                 end
+                 `XRL_R:begin                            
+                     alu_code = `ALU_XRL;
+                     flag_set = `NO_SET;
+                 end
+                 default: begin
+                 end
+            endcase 
+        end
+    begin : Decoder3
+        case (Opcode[7:0])
+              `MOV_C: begin                    //Mov A, #immediate
+                    cycles= 3'b001;
+                    Memwr = 1'b1;
+                    Memrd = 1'b0;
+                    is_bit = 1'b0;
+                    indirect_flag = 1'b0;
+                    wr_en_acc = 1'b1; 
+                    addr_ram = `SFR_ACC;
+                    in_data = addr1;
+                    end
+                    default: begin
+                    end
+                endcase   
+       end
+    end
+end
+
+always @(posedge clock)
+begin
+    if (Execute == 1'b1) begin
+        count_clock =  count_clock +1'b1;
+        if (count_clock == cycles ) begin
+            ready = 1'b1;
+            count_clock = 3'b000;
+        end
+        else if (cycles == 3'b010 ) begin
+                    
+            end
+        else if (cycles == 3'b100) begin
+        end
     end
 end
 endmodule

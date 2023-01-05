@@ -23,7 +23,9 @@
 module control_unit(
         input clock,
         input reset,
+        input ready,
         input [7:0] Opcode,
+        output Execute,
         output Fetch,
         output Decode
         
@@ -36,7 +38,11 @@ parameter s_start  = 3'b000, s_int =3'b001,s_fetch = 3'b010,
 reg   [2:0]          state        ;// Seq part of the FSM
 
 //====== Check the type of Operations===========
+assign Fetch = (state == s_fetch) 	? 1'b1:1'b0;
 
+assign Decode = (state == s_decode) 	? 1'b1:1'b0;
+
+assign Execute = (state == s_execute) 	? 1'b1:1'b0;
 
 always @ (posedge clock)
 begin : FSM
@@ -54,8 +60,10 @@ begin : FSM
 			s_decode : 
 			   state <= s_execute;
 			s_execute:
+			     if(ready) begin
 			     state<=s_fetch;
-			default : state <= s_start;
+			     end
+			default : state <= s_fetch;
 		endcase
 	end	
 end
