@@ -33,13 +33,6 @@
 `define SFR_IE 8'ha8 // interrupt enable
 `define SFR_IP 8'hb7 // interrupt priority
 
-`define SFR_RCAP2H 8'hcb // timer 2 capture high
-`define SFR_RCAP2L 8'hca // timer 2 capture low
-
-`define SFR_T2CON 8'hc8 // timer 2 control register
-`define SFR_TH2 8'hcd // timer 2 high
-`define SFR_TL2 8'hcc // timer 2 low
-
 // ----- SFR bit addressable ----------
 
 `define SFR_B_ACC 5'b11100 //accumulator
@@ -59,14 +52,18 @@
 `define RST_SP 8'h07 // stack pointer
 
 //------------RAM address types----------------
-`define RAM_IM 4'b0000    // immediate
-`define RAM_DIRECT 4'b0001  // direct
-`define RAM_REG 4'b0010     //register
-`define RAM_REG_IND 4'b0011  // indirect memory with r0 and r1
-`define RAM_DIRECT_BIT 4'b0100 //instruction like setb
-`define RAM_STACK 4'b0101      // pop and push
-`define RAM_BASE_REGISTER 4'b0111 // mov with pointers 
-`define RAM_RELATIVE 4'b1000 // instruction like acall 
+`define RD_RAM_IM 4'b0000    // immediate
+`define RD_RAM_DIRECT 4'b0001  // direct
+`define RD_RAM_REG 4'b0010     //register
+`define RD_RAM_REG_IND 4'b0011  // indirect memory with r0 and r1
+`define RD_RAM_STACK 4'b0101      // pop and push
+`define RD_RAM_RELATIVE 4'b1000 // instruction like acall 
+`define WR_RAM_IM 4'b0000    // immediate
+`define WR_RAM_DIRECT 4'b0001  // direct
+`define WR_RAM_REG 4'b0010     //register
+`define WR_RAM_REG_IND 4'b0011  // indirect memory with r0 and r1
+`define WR_RAM_STACK 4'b0101      // pop and push
+`define WR_RAM_RELATIVE 4'b1000 // instruction like acall 
 //---------PSW_aux-----------
 `define NO_SET          2'b00
 `define CY_SET          2'b01

@@ -83,7 +83,7 @@ begin
             tf0 <= 1'b1;
             tl0 <=th0;
            end
-          else begin
+          else begin    
             tl0 <=tl0 + 8'h1;
             tf0 <= 1'b0;
           end

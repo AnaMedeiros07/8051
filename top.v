@@ -26,27 +26,35 @@ module top(
     );
 
 wire [7:0] Opcode ;
-wire Fetch,Decode,Execute;
-wire ready;
+wire IRload,PCload,JMPload,Aload,NotRload;
+wire [4:0] ALU_Opcode;
+wire [4:0] RAM_access;
 
 control_unit ctrlunit(
 	  .clock(clock),
       .reset(reset),
-      .ready(ready),
+      .Aload(Aload),
+      .IRload(IRload),
+      .PCload(PCload),
+      .NotRload(NotRload),
+      .JMPload(JMPload),
       .Opcode(Opcode),
-      .Fetch(Fetch),
-      .Execute(Execute),
-      .Decode(Decode)
+      .RAM_access(RAM_access),
+      .ALU_Opcode(ALU_Opcode)
 );
 
 datapath data_path(
 	 .clock(clock),
      .reset(reset),
-     .ready(ready),
-     .Fetch(Fetch),
-     .Execute(Execute),
-     .Decode(Decode),
-     .Opcode(Opcode)
+     .Aload(Aload),
+     .IRload(IRload),
+     .NotRload(NotRload),
+     .PCload(PCload),
+     .JMPload(JMPload),
+     .Opcode(Opcode),
+     .RAM_access(RAM_access),
+     .ALU_Opcode(ALU_Opcode)
+     
 );
 
 endmodule

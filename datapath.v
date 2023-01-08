@@ -26,13 +26,14 @@
 module datapath(
         input clock,
         input reset,
-        output ready,
-        input Execute,
-        input Fetch,
-        input Decode,
-        output [7:0] Opcode
-        
-        
+        input Aload,
+        input NotRload,
+        input wire [3:0] RAM_access,
+        input wire [3:0] ALU_Opcode,
+        input IRload,
+        input PCload,
+        input JMPload,
+        output wire [7:0] Opcode
     );
 
 //-----------------------intanciate variables--------------------------------
@@ -52,7 +53,7 @@ reg [7:0] addr_ram;
 reg [7:0] in_data;
 
 //Outputs
-wire [7:0] out_data;
+wire [7:0] out_ram;
 wire out_bit;
 
 //===ROM===
@@ -60,10 +61,9 @@ reg rd_rom;
 reg [9:0]addr_rom;
 
 //Output
-wire [23:0] out_rom;
+wire [7:0] out_rom;
 
 //=== PSW=====
-reg [7:1] data_in;
 reg [7:0] acc;
 reg write_en, write_bit_en;
 reg [2:0] bit_addr_psw;
@@ -87,23 +87,18 @@ reg [1:0] flag_set;
   wire [7:0] b_data;
  // === Aux_Variables===
  reg [1:0] Bank;
- reg [23:0] instruction;
  reg [7:0] offset;
  reg [7:0] addr1;
  reg [7:0] addr2; 
- reg [2:0] cycles;
- reg ready;
- reg [2:0] count_clock;
  
 //== Registers ==
 reg [15:0] PC;
 reg [7:0] IR;
-reg [7:0] PSW;
-reg [7:0] A;
+
 
 
 //-------------------------------------------------------------------------------                 
-// -------------- intanciate the memory_ram --------------------------------
+// -------------- intanciate the ram_controller --------------------------------
 memory_ram RAM(
     .clock(clock),
     .reset(reset),
@@ -115,9 +110,10 @@ memory_ram RAM(
     .bit_addr(bit_addr),
     .is_bit(is_bit), // flag to indicate that is bit addressable
     .indirect_flag (indirect_flag), // flag 
-    .out(out_data),// word
+    .out(out_ram),// word
     .out_bit (out_bit)
 ); 
+
 //-------------------------------------------------------------------------------
 //---------------------- intanciate the ALU -------------------------------------
 alu_core alu_core_module(
@@ -140,7 +136,7 @@ alu_core alu_core_module(
 memory_rom ROM(
     .clock(clock), 
     .reset(reset),
-    .addr(addr_rom),
+    .addr(PC),
     .out(out_rom)
 );
 //---------------------------------------------------------------------------------
@@ -151,10 +147,10 @@ memory_rom ROM(
         .carry_in(cy_new),
         .aux_carry_in(ac_new),
         .overflow_in(ov_new), 
-        .data_in(data_in),
+        .data_in(in_data),
         .acc_in(acc),
-        .write_en(write_en),
-        .write_bit_en(write_bit_en),
+        .write_en(Memwr),
+        .write_bit_en(is_bit),
         .addr(bit_addr_psw),
         .flag_set(flag_set),
         .psw_data(psw_data) 
@@ -178,7 +174,7 @@ acc_sfr acc_module(
      .reset(reset),
      .data_in(in_data),
      .addr(addr_ram),
-     .wr_en(wr_en_acc),
+     .wr_en(Memwr),
      .wr_bit_en(is_bit),
      .bit_in(in_bit),
      .acc_data(acc_data),
@@ -191,7 +187,7 @@ b_sfr b_module(
      .reset(reset),
      .data_in(in_data),
      .addr(addr_ram),
-     .wr_en(wr_en_b),
+     .wr_en(Memwr),
      .wr_bit_en(is_bit),
      .bit_in(bit_in),
      .b_data(b_data)
@@ -200,135 +196,215 @@ b_sfr b_module(
 //---------------------Variables to do the decode ------------------------------ 
 
 initial begin
-   addr_rom = 8'h00;
+    addr_rom = 8'h00;
     addr_ram= 8'h00;
     PC = 16'h0000;
-    count_clock = 3'b000; 
-    end
-    // --------------Reset / Start--------------------------
+    IR = 8'h00;
+    alu_code = 5'h00;
+    src_1 = 8'h00;
+    src_2 = 8'h00;
+    cy = 1'b0;
+    aux_cy = 1'b0;
+    bit = 1'b0;
+    in_data = 8'h00;
+    Bank = 2'h00;
+    offset = 8'h00;
+end
+    // --------------Reset --------------------------
 always @ (posedge reset)
 begin 
     addr_rom = 8'h00;
     addr_ram= 8'h00;
     PC = 16'h0000;
-    count_clock = 3'b000;
+
 end
 
-//-------------------Fetch-----------------------
+//-------------------For Fetch1 and Fetch2-----------------------
 always @ (posedge clock)
 begin 
-    if(Fetch == 1'b1) begin
-        addr_rom = PC;
-        instruction = out_rom;
-        IR= instruction[23:16];
-        addr1= instruction[15:8];
-        addr2= instruction[7:0];
-        PC = PC + 3;
-        PSW = psw_data;
-        A = acc_data;
-        ready = 1'b0;
-    end  
+    if(IRload == 1'b1 && PCload == 1'b1 && NotRload == 1'b1) begin // 2 fetch
+        addr1= out_rom;
+        PC = PC + 1;
+   end
+   else if(IRload == 1'b1 && PCload == 1'b1 ) begin // 1 fetch
+        IR= out_rom;
+        PC = PC + 1;
+   end
+
 end
-//----------------------------------------------
+    //-----------------Assign the opcode -----------------------------
 assign Opcode = IR[7:0];
-//-------------Decode------------------------------
+
+
+//----------------Decode RAM------------------      
 always @ (posedge clock)
 begin 
-    if (Decode == 1'b1 ) begin
-            Bank = PSW[4:3];
-            if (Bank == 2'b00 )begin
-                offset = `BanK_0_offset;
-            end
-             if (Bank == 2'b01 )begin
-                offset = `BanK_1_offset;
-            end
-             if (Bank == 2'b10 )begin
-                offset = `BanK_2_offset;
-            end
-             if (Bank == 2'b11 )begin
-                offset = `BanK_3_offset;
-            end
-    begin : Decocer1
-            case(Opcode[4:0])
-                `ACALL:begin
+        begin: Decode_RAM
+        case(RAM_access)
+            `RD_RAM_IM:begin // 
+                src_1 = acc_data; 
+             end
+             `RD_RAM_DIRECT:begin
+                src_1 = acc_data;
+                Memwr=1'b0;
+                Memrd=1'b1;
+                indirect_flag=1'b0;
+                is_bit =1'b0;
+                addr_ram =addr1;  
+             end
+             `RD_RAM_REG:begin
+              Bank = psw_data[4:3];
+              if (Bank == 2'b00 )begin
+                offset <= `BanK_0_offset;
+              end
+              if (Bank == 2'b01 )begin
+                offset <= `BanK_1_offset;
+              end
+              if (Bank == 2'b10 )begin
+                offset <= `BanK_2_offset;
+              end
+              if (Bank == 2'b11 )begin
+                offset <= `BanK_3_offset;
+              end
+                src_1 = acc_data;
+                Memwr=1'b0;
+                Memrd=1'b1;
+                indirect_flag=1'b0;
+                is_bit =1'b0;
+                addr_ram =IR[2:0] + offset;  ;
+              end
+              `RD_RAM_REG_IND:begin
+                src_1 = acc_data;
+                Memwr=1'b0;
+                Memrd=1'b1;
+                indirect_flag=1'b1;
+                is_bit =1'b0;
+                addr_ram =IR[0] + offset;  
+              end 
+             `WR_RAM_REG:begin
+              Bank = psw_data[4:3];
+              if (Bank == 2'b00 )begin
+                offset <= `BanK_0_offset;
+              end
+              if (Bank == 2'b01 )begin
+                offset <= `BanK_1_offset;
+              end
+              if (Bank == 2'b10 )begin
+                offset <= `BanK_2_offset;
+              end
+              if (Bank == 2'b11 )begin
+                offset <= `BanK_3_offset;
+              end
+              Memwr = 1'b1;
+              Memrd = 1'b0;
+              indirect_flag = 1'b0;
+              is_bit = 1'b0;
+              in_data = acc_data;
+              addr_ram = IR[2:0] +offset;
+             end  
+             `WR_RAM_REG_IND:begin
+                Memwr=1'b0;
+                Memrd=1'b1;
+                indirect_flag=1'b1;
+                is_bit =1'b0;
+                in_data = acc_data;
+                addr_ram =IR[0] + offset;  
+              end    
+             default:begin
+             end
+        endcase
+      end
+
+end
+always @ (posedge clock)
+begin
+   if( Aload == 1'b1)begin
+        begin: Decode_ALU
+        case(ALU_Opcode)
+            `ALU_ADD:begin
+             src_2 = out_ram;
+             flag_set =`CY_OV_AC_SET ;
+             alu_code = `ALU_ADD;
+             end
+             `ALU_SUBB:begin
+             src_2 = out_ram;
+             flag_set =`CY_OV_AC_SET ;
+              alu_code = `ALU_SUBB;
+             end
+             `ALU_ANL:begin
+              src_2 = out_ram;
+              flag_set =`NO_SET ;
+               alu_code = `ALU_ANL;
+             end
+             `ALU_ORL:begin
+              src_2 = out_ram;
+              flag_set =`NO_SET ;
+               alu_code = `ALU_ORL;
+             end
+             `ALU_INC:begin
+              src_2 = out_ram;
+              flag_set =`NO_SET ;
+               alu_code = `ALU_INC;
+             end
+             `ALU_DEC:begin
+              src_2 = out_ram;
+              flag_set =`NO_SET ;
+               alu_code = `ALU_DEC;
+             end
+             default:begin
+             end
+        endcase
+      end
+      if ( alu_code != 5'h00) begin
+          in_data = des_1;
+          Memwr = 1'b1;
+          indirect_flag = 1'b0;
+          addr_ram=`SFR_ACC;
+          is_bit = 1'b0;
+          alu_code = 5'h00;
+      end
+      else if ( Opcode == `MOV_D && Opcode == `MOV_C && Opcode[7:3] == `MOV_R && Opcode == `MOV_I) begin
+        in_data = out_ram;
+        Memwr = 1'b1;
+        indirect_flag = 1'b0;
+        addr_ram=`SFR_ACC;
+        is_bit = 1'b0;
+        alu_code = 5'h00;
+      end 
+   end
+    
+end
+
+always @ (posedge clock)
+begin
+    if(JMPload == 1'b1)begin
+        begin : FindJMP
+            case (Opcode)
+                `JNZ:begin
+                    if(acc_data != 8'h00)begin
+                       PC = PC + {8'h00,addr1};
+                    end  
+                  end
+                 `JZ:begin
+                    if(acc_data == 8'h00)begin
+                        PC = PC + {8'h00,addr1};
+                    end
+                 end
+                 `JNC:begin
+                    if(psw_data[7] != 8'h00)begin
+                        PC = PC + {8'h00,addr1};
+                    end
                  end
                  `AJMP:begin
+                      PC = { IR[7:5],addr1};
                  end
-                 default: begin
-                 end
-            endcase
-    end
-    begin : Decoder2
-            case(Opcode[7:3])
-                `ADD_R:begin                          // ADD A,R0 A=A+Rn
-                    alu_code = `ALU_ADD;
-                    Memwr =1'b0;
-                    Memrd= 1'b1; 
-                    indirect_flag = 1'b0;
-                    is_bit = 1'b0;
-                    addr_ram = Opcode[2:0] + offset;
-                    src_2 = out_data;
-                    src_1 = acc_data;
-                    flag_set = `CY_OV_AC_SET;
-                 end
-                `ADDC_R: begin                      // ADD A,Rn A=A+Rx+c
-                   alu_code = `ALU_ADDC;
-                   flag_set = `CY_OV_AC_SET;
-                 end
-                 `INC_R:begin                            // increment accumulator
-                     alu_code = `ALU_INC;
-                    
-                     flag_set = `NO_SET;
-                 end
-                `SUBB_R: begin                                     // SUBB A,Rn  
-                    alu_code = `ALU_SUBB;
-                 
-                    flag_set = `CY_OV_AC_SET;
-                end
-                `DEC_R:begin                          // decrement reg
-                     alu_code = `ALU_DEC;
-                     flag_set = `NO_SET;
-                 end
-                 `XRL_R:begin                            
-                     alu_code = `ALU_XRL;
-                     flag_set = `NO_SET;
-                 end
-                 default: begin
-                 end
-            endcase 
+            default:begin
+            end
+            endcase  
         end
-    begin : Decoder3
-        case (Opcode[7:0])
-              `MOV_C: begin                    //Mov A, #immediate
-                    cycles= 3'b001;
-                    Memwr = 1'b1;
-                    Memrd = 1'b0;
-                    is_bit = 1'b0;
-                    indirect_flag = 1'b0;
-                    wr_en_acc = 1'b1; 
-                    addr_ram = `SFR_ACC;
-                    in_data = addr1;
-                    end
-                    default: begin
-                    end
-                endcase   
-       end
     end
+   
+    
 end
 
-always @(posedge clock)
-begin
-    if (Execute == 1'b1) begin
-        count_clock =  count_clock +1'b1;
-        if (count_clock == cycles ) begin
-            ready = 1'b1;
-            count_clock = 3'b000;
-        end
-        else if (cycles == 3'b010 ) begin
-                    
-            end
-        else if (cycles == 3'b100) begin
-        end
-    end
-end
 endmodule

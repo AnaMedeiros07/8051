@@ -53,36 +53,64 @@ reg [ (ADDRESS_WIDTH-1):0] IRAM [(DATA_WIDTH-1):128]; //127-256 inderect acess
 always @(posedge reset)
 begin
     for (i=0; i<=127;i=i+1) begin
-      LRAM[i]=8'h00;
+      LRAM[i]=8'h07;
     end
     for (i=127; i<=255;i=i+1) begin
       HRAM[i]=8'h00;
       IRAM[i]=8'h00;
     end  
+   
 end
 
 //=====================================================================
 // notes : see better SFR bit addressable
 
 // ========================Write and Read bit===========================
-always @(posedge clock)
+always @(posedge rd)
 begin
     if (is_bit ==1'b1)begin // bit addressable 
-        if(rd ==1'b1)begin
-            if( (addr >= 8'h80 && addr<=8'hFF) && addr[3:0] == 8'h8 || addr[3:0] == 8'h0 )begin // SFR  / direct acess
-                mem_word = HRAM [addr];
-                out_bit=mem_word[bit_addr];
+        if( (addr >= 8'h80 && addr<=8'hFF) && addr[3:0] == 8'h8 || addr[3:0] == 8'h0 )begin // SFR  / direct acess
+            mem_word = HRAM [addr];
+            out_bit=mem_word[bit_addr];
+        end
+        else if(addr>=8'h20 &&
+            addr<=8'h2F) begin // bit addressable area 20h to 2Fh
+            aux_addr_bit = bit_addr/8;
+            bit_to_change =  bit_addr%8;
+            mem_word = LRAM [aux_addr_bit+ 8'h20]; // aux_addr_bit(line) + 20h (first address of bit addressable memory)
+            out_bit=mem_word[bit_to_change];
+        end
+    end
+    if (is_bit ==1'b0)begin 
+          if( addr >= 8'h80 && addr<=8'hFF && indirect_flag == 1'b0)begin // SFR  / direct acess
+               out = HRAM[addr];
             end
-            else if(addr>=8'h20 &&
-                addr<=8'h2F) begin // bit addressable area 20h to 2Fh
-                aux_addr_bit = bit_addr/8;
-                bit_to_change =  bit_addr%8;
-                mem_word = LRAM [aux_addr_bit+ 8'h20]; // aux_addr_bit(line) + 20h (first address of bit addressable memory)
-                out_bit=mem_word[bit_to_change];
+            else if(addr <8'h80 && addr >=8'h0) begin 
+               out = LRAM[addr];
             end
-        end 
-       if(wr==1'b1)begin
-          if( (addr >= 8'h80 && addr<=8'hFF) && (addr[3:0] == 4'h8  || addr[3:0] == 4'h0))begin // SFR  finishing in 0 or 8 are 
+            else if (indirect_flag==1'b1 && addr >= 8'h80 && addr<=8'hFF )begin
+                out = IRAM[addr];
+            end
+        end
+        
+end
+//============================================================================
+// ========================Write and Read byte================================
+always @(wr)
+begin
+    if (is_bit ==1'b0)begin // byte addressable
+          if( addr >= 8'h80 && addr<=8'hFF && indirect_flag ==1'b0)begin // SFR  / direct acess
+            HRAM[addr] = in_data;
+          end
+          else if(addr <8'h80 && addr >=8'h0) begin
+            LRAM[addr] = in_data;
+          end 
+          else if (indirect_flag==1'b1 && addr >= 8'h80 && addr<=8'hFF ) begin  
+            IRAM[addr]= in_data;
+          end
+    end   
+     if (is_bit ==1'b1)begin 
+        if( (addr >= 8'h80 && addr<=8'hFF) && (addr[3:0] == 4'h8  || addr[3:0] == 4'h0))begin // SFR  finishing in 0 or 8 are 
             mem_word = HRAM [addr];                                                              // bit addressable
             mem_word [bit_addr] = in_bit;
             HRAM[addr] = mem_word;
@@ -94,39 +122,8 @@ begin
             mem_word = LRAM [aux_addr_bit];// aux_addr_bit(line) + 20h (first address of bit addressable memory)
             mem_word[bit_to_change] = in_bit;
             LRAM[aux_addr_bit] = mem_word;
-          end 
-       end
-    end
-        
-end
-//============================================================================
-// ========================Write and Read byte================================
-always @(posedge clock)
-begin
-    if (is_bit ==1'b0)begin // byte addressable
-        if(rd ==1'b1)begin
-            if( addr >= 8'h80 && addr<=8'hFF && indirect_flag == 1'b0)begin // SFR  / direct acess
-               out = HRAM[addr];
-            end
-            else if(addr <8'h80 && addr >=8'h0) begin 
-               out = LRAM[addr];
-            end
-            else if (indirect_flag==1'b1 && addr >= 8'h80 && addr<=8'hFF )begin
-                out = IRAM[addr];
-            end
-        end
-       if(wr==1'b1)begin
-          if( addr >= 8'h80 && addr<=8'hFF && indirect_flag ==1'b0)begin // SFR  / direct acess
-            HRAM[addr] = in_data;
-          end
-          else if(addr <8'h80 && addr >=8'h0) begin
-            LRAM[addr] = in_data;
-          end 
-          else if (indirect_flag==1'b1 && addr >= 8'h80 && addr<=8'hFF ) begin  
-            IRAM[addr]= in_data;
-          end
-        end     
-    end
+          end   
+   end
 end
 //============================================================================
 endmodule
