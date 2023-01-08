@@ -24,7 +24,7 @@ module alu_core(
     input clock,
     input reset,
     
-    input [3:0] alu_opcode,
+    input [4:0] alu_opcode,
     
     input [7:0] op_in_1, // first operand
     input [7:0] op_in_2, // second operand
@@ -61,7 +61,7 @@ begin
     op_out_2=8'h00;
 end
 
-always @(alu_opcode)
+always @(alu_opcode) //to only execute the alu operations once
 begin     
     case (alu_opcode)
         
@@ -174,7 +174,6 @@ begin
             carry_out = carry_in | bit_in;
             
         end
-        
     endcase
 end
  

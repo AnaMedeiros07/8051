@@ -21,6 +21,19 @@
 
 `include "define_opcodes.v"
 
+/*
+
+Connect these inputs to the respective accumulator output
+
+carry_in - new carry value 
+aux_carry_in - new auxiliary carry value 
+overflow_in - new overflow value
+
+parity - accumulator parity, connect it to accumulator parity output
+
+psw_set - depending on the operations indicates which psw flags should be changed
+
+*/
 module psw(
     input clock,
     input reset,
@@ -34,7 +47,7 @@ module psw(
     input write_en,
     input write_bit_en,
     
-    input [1:0] flag_set,
+    input [1:0] psw_set,
      
     output [7:0] psw_data
     );
@@ -64,7 +77,7 @@ begin
             data[addr[2:0]]= carry_in;
             
         else begin
-            case (flag_set)
+            case (psw_set)
                 
                 `CY_SET:
                     begin

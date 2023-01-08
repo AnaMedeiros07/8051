@@ -22,38 +22,18 @@
 module top(
     
     input clock, reset,
-    input write_en,
-    input write_bit_en,
-    input [7:0] data_addr,
     input [7:0] data_in,
-    output [7:0] data_out,
-    input en_data_in,
-    input en_data_out,
-    input [23:0] instruction
+    output [7:0] data_out
     );
     
-    //data and addr bus
     
-    wire [7:0] data_addr_bus;
-    wire [7:0] data_bus;
     
-    assign data_addr_bus = data_addr;
-    assign data_bus = en_data_in ? data_in : en_data_out ? data_out : data_bus;
-    
-    wire [7:0] psw_data;
-    
-    //instrcution register
-    
-    assign op_code = instruction[23:16];
-    assign op_1 = instruction[15:8];
-    assign op_2 = instruction[7:0];
-    
-    assign cy = psw_data[7];
-    assign aux_cy = psw_data[6];
-    
-    reg [7:0] alu_code;
+    wire [4:0] alu_code;
     reg [7:0] src_1; 
     reg [7:0] src_2;
+    
+    wire [7:0] addr_ram;
+    wire [16:0] addr_rom;
     
     alu_core alu_core_module(
         .clock(clock),
@@ -62,7 +42,7 @@ module top(
         .op_in_1(src_1), 
         .op_in_2(src_2), 
         .carry_in(cy),
-        .aux_carry_in(aux_cy),
+        .aux_carry_in(ac),
         .bit_in(bit_in),
         .overflow_out(ov_new),
         .aux_carry_out(ac_new),
@@ -70,44 +50,43 @@ module top(
         .op_out_1(des_1),
         .op_out_2(des_2) 
         );
-    
-    psw psw_module(
+        
+    sfr_regfile sfr(
         .clock(clock),
         .reset(reset),
-        .carry_in(cy_new),
-        .aux_carry_in(ac_new),
-        .overflow_in(ov_new), 
-        .parity(parity),
-        .data_in(data_bus),
-        .addr(data_addr_bus),
-        .write_en(write_en),
-        .write_bit_en(write_bit_en),
-        .flag_set(flag_set),
-        .psw_data(psw_data) 
-        );   
-        
-    acc_sfr acc_sfr_module(
-        .clock(clock), 
-        .reset(reset),
-        .data_in(data_bus),
-        .addr(data_addr_bus),
-        .write_en(write_en),
-        .write_bit_en(write_bit_en),
-        .bit_in(bit_in),
-        .acc_data(acc),
-        .parity(parity)
+        .data_in(data_in),
+        .addr(addr_ram),
+        .cy_in(cy_new),
+        .ac_in(ac_new),
+        .ov_in(ov_new),
+        .psw_set(psw_set),
+        .data_out(data_out),
+        .cy(cy),
+        .ac(ac),
+        .bank_sel(bank_sel)
+        );
+
+    memory_rom ROM(
+    .clock(clock), 
+    .reset(reset),
+    .addr(addr_rom),
+    .out(instruction)
     );
     
-    b_sfr b_sfr_module(
-        .clock(clock), 
-        .reset(reset),
-        .data_in(data_bus),
-        .addr(addr_bus),
-        .write_en(write_en),
-        .write_bit_en(write_bit_en),
-        .bit_in(bit_in),
-        .b_data(b)
-    );       
-
-     
+    memory_ram RAM(
+    .clock(clock),
+    .reset(reset),
+    .addr(addr_ram), 
+    .rd(Memrd), //read
+    .wr(Memwr), //write
+    .in_data(data_in),// data to write in an address
+    .in_bit(bit_in), // data to write in the bit 
+    .bit_addr(bit_addr),
+    .is_bit(is_bit), // flag to indicate that is bit addressable
+    .indirect_flag (indirect_flag), // flag 
+    .out(out_data),// word
+    .out_bit (out_bit)
+    ); 
+    
+    
 endmodule
