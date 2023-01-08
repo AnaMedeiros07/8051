@@ -43,18 +43,24 @@ module sfr_regfile(
     //psw outputs
     output cy,
     output ac,
-    output [1:0] bank_sel
+    output [1:0] bank_sel,
+    //dptr outputs
+    output [7:0] dptr_low,
+    output [7:0] dptr_high
     
     );
     
     wire [7:0] psw_data;
     wire [1:0] bank_sel;
+    wire [7:0] dptr_low;
+    wire [7:0] dptr_high;
     
     reg [7:0] data_out;
     
     assign bank_sel = psw_data[4:3];
     assign cy = psw_data[7];
     assign ac = psw_data[6];
+    assign acc = acc_data;
     
     psw psw_module(
         .clock(clock),
@@ -94,6 +100,18 @@ module sfr_regfile(
         .data_out(b_data)
     ); 
     
+    dptr dptr(
+        .clock(clock),
+        .reset(reset),
+        .data_in(data_in),
+        .addr(addr),
+        .write_en(write_en),
+        .write_bit_en(write_bit_en),
+        .data_h(dptr_high),
+        .data_l(dptr_low)
+            
+    );
+   
     port #(.SFR_ADDR(`SFR_P0), .SFR_B_ADDR(`SFR_B_P0)) port0(
         .clock(clock), 
         .reset(reset),
@@ -144,13 +162,15 @@ if(reset)
 else
     begin
         case (addr)
-            `SFR_ACC:   data_out = acc_data;
-            `SFR_B:     data_out = b_data;
-            `SFR_PSW:   data_out = psw_data;
-            `SFR_P0:    data_out = port0_data;
-            `SFR_P1:    data_out = port1_data;
-            `SFR_P2:    data_out = port2_data;
-            `SFR_P3:    data_out = port3_data;
+            `SFR_ACC:           data_out = acc_data;
+            `SFR_B:             data_out = b_data;
+            `SFR_PSW:           data_out = psw_data;
+            `SFR_P0:            data_out = port0_data;
+            `SFR_P1:            data_out = port1_data;
+            `SFR_P2:            data_out = port2_data;
+            `SFR_P3:            data_out = port3_data;
+            `SFR_DPTR_LO:       data_out = dptr_low;
+            `SFR_DPTR_HI:       data_out = dptr_high;
         endcase
     end
     

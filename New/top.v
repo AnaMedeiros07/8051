@@ -56,14 +56,20 @@ module top(
         .reset(reset),
         .data_in(data_in),
         .addr(addr_ram),
+        .bit_in(bit_in),
+        .write_en(write_en),
+        .write_bit_en(write_bit_en),
         .cy_in(cy_new),
         .ac_in(ac_new),
         .ov_in(ov_new),
         .psw_set(psw_set),
         .data_out(data_out),
+        .acc(acc),
         .cy(cy),
         .ac(ac),
-        .bank_sel(bank_sel)
+        .bank_sel(bank_sel),
+        .dptr_low(dptr_low),
+        .dptr_high(dptr_high)
         );
 
     memory_rom ROM(
