@@ -110,13 +110,13 @@ begin
         
         `ALU_XRL: begin
             
-            op_out_1 = op_in_1 | op_in_2;
+            op_out_1 = op_in_1 ^ op_in_2;
         
         end
         
         `ALU_ANL: begin
             
-            op_out_1 = op_in_1 | op_in_2;
+            op_out_1 = op_in_1 & op_in_2;
             
         end
     endcase
