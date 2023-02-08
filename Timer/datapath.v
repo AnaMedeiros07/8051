@@ -99,12 +99,11 @@ reg [1:0] flag_set;
  reg [1:0] Bank;
  reg [7:0] offset;
  reg [7:0] addr1;
- //======Auxiliar variable for CPL bit====
  reg old_bit;
- //=========Aux Variables for Interrupts and Timer======
  wire int_en;
+ reg int_request;
  reg timer_request;
- reg timer_pend;
+ reg int_pend;
  
  
 //== Registers ==
@@ -269,25 +268,27 @@ initial begin
     old_bit = 1'b0;
     addr_rom= 16'h0000;
     timer_request= 1'b0;
-    timer_pend = 1'b0;
+    int_request= 1'b0;
+    int_pend = 1'b0;
 end
     // --------------Reset --------------------------
 
-assign int_en = (IRload == 1'b1) ? 1'b1:1'b0; // check if is happing an intruction
 
+assign int_en = (IRload == 1'b1 ) ? 1'b1:1'b0; // check if is happing an intruction
 
 always @ (posedge clock)
 begin
-    if((tf0 == 1'b1 || timer_pend==1'b1) && int_en) begin
+    if((tf0 == 1'b1 || int_pend==1'b1) && int_en && IE_data[7] == 1'b1 && IE_data[1] == 1'b1) begin
+        int_request = 1'b1;
+        int_pend = 1'b0;
+    end
+    else if (tf0 == 1'b1 && int_en== 1'b1) begin
+        int_pend = 1'b1;
         timer_request = 1'b1;
-        timer_pend = 1'b0;
     end
-    else if (tf0 == 1'b1) begin
-        timer_pend = 1'b1;
+    else if(int_en == 1'b1)begin
+       timer_request= 1'b0;
     end
-    else
-       timer_request = 1'b0;
-    
 end
 
 //-------------------Update PC-----------------------
@@ -344,14 +345,23 @@ begin
 //-----------------Update IR and addr1----------------------
 always @(posedge clock)
 begin
-    
-    if(PCload == 1'b1 && IRload == 1'b1 ) begin
-        IR = out_rom;
+    if(int_request == 1'b0) begin
+        if(PCload == 1'b1 && IRload == 1'b1 ) begin
+            IR = out_rom;
+        end
+        else if ( PCload == 1'b1 )begin
+            addr1 = out_rom;
+        end
     end
-    else if ( PCload == 1'b1 )begin
-        addr1 = out_rom;
+    else begin
+        if(PCload == 1'b1 && IRload == 1'b1 ) begin
+            IR = 8'b00010001; // ACALL
+        end
+        else if ( PCload == 1'b1 )begin
+            addr1 = 8'b00001011;  // timer 0 interrupt vetor 0b
+            int_request= 1'b0;
+        end
     end
-    
 end
     
     //-----------------Assign the opcode -----------------------------
@@ -361,19 +371,12 @@ assign Opcode = IR[7:0];
 //----------------Access RAM------------------      
 always @ (posedge clock)
 begin 
-     if(IRload == 1'b1) begin
-             Memwr = 1'b1;
-             Memrd = 1'b0;
-             is_bit = 1'b1;
-             in_bit = timer_request;
-             addr_ram = 8'h8d;
-    end
-    else if ( Aload == 1'b1 && RAMload == 1'b1 && JMPload == 1'b1)begin // update SP
-            /*addr_ram = `SFR_SP;
-            Memwr = 1'b1;
-            Memrd = 1'b0;
-            in_data = sp_out;
-            is_bit = 1'b0;*/
+    if ( Aload == 1'b1 && RAMload == 1'b1 && JMPload == 1'b1)begin // update tf0
+         Memwr = 1'b1;
+         Memrd = 1'b0;
+         is_bit = 1'b1;
+         in_bit = timer_request;
+         addr_ram = 8'h8d;
     end
     else if(Aload == 1'b1 && RAMload ==1'b1) begin // Update A
          if ( ALU_Opcode != 5'h00) begin
